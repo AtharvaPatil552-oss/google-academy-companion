@@ -2,12 +2,13 @@ import os
 import sys
 import json
 import glob
+import time
 import subprocess
 import urllib.request
 import urllib.error
 
 def load_env_file():
-    """Built-in pure Python .env parser (No external packages needed!)."""
+    """Pure Python .env parser."""
     if os.path.exists(".env"):
         with open(".env", "r") as f:
             for line in f:
@@ -25,9 +26,9 @@ if not GEMINI_API_KEY:
 
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
 
-def get_workspace_context():
-    """Inspects all code files in the repo."""
-    files_to_read = glob.glob("app/**/*.py", recursive=True) + glob.glob("app/**/*.html", recursive=True) + ["docs/organization.md"]
+def get_lean_workspace():
+    """Reads only relevant active Python/HTML files to minimize payload and maximize speed."""
+    files_to_read = glob.glob("app/**/*.py", recursive=True) + glob.glob("app/**/*.html", recursive=True)
     context = {}
     for f in files_to_read:
         try:
@@ -38,44 +39,52 @@ def get_workspace_context():
     return context
 
 def run_agent(task_prompt: str):
-    print(f"\n🤖 [Termux Multi-Agent CLI] Task: {task_prompt}")
-    print("🔍 [Room 10 / Room 3] Inspecting workspace files...")
-    workspace = get_workspace_context()
+    start_time = time.time()
+    print(f"\n⚡ [Turbo Agent Active] Task: {task_prompt}")
+    print("🔍 Inspecting workspace (lean scan)...")
+    workspace = get_lean_workspace()
     
-    system_prompt = f"""
-You are the Autonomous Multi-Agent Engineer running in Termux for Google Academy Companion.
-You follow the rules in docs/organization.md.
+    system_instruction = {
+        "parts": [{
+            "text": "You are the high-speed autonomous coding engineer for Google Academy Companion. "
+                    "Write production-grade, concise, pure-Python code for Termux compatibility. "
+                    "Output ONLY valid JSON matching the requested schema. No markdown wrapping."
+        }]
+    }
 
-Current Workspace:
-{json.dumps(workspace, indent=2)}
+    user_content = f"""
+Existing Files:
+{json.dumps(workspace)}
 
 TASK: {task_prompt}
 
-CRITICAL RULES:
-1. Python backend should use lightweight Flask or pure Python to avoid Rust/C compilation on Termux.
-2. Respond with ONLY a JSON object (no markdown wrapping, no ```json tags).
-
-JSON SCHEMA:
+Respond with ONLY valid JSON:
 {{
   "room": "ROOM 3 — DEVELOPMENT",
-  "agent": "Agent 3.3 (Authentication Engineer)",
-  "thought": "Short explanation of the code written",
+  "agent": "Agent 3.x (Specialist)",
+  "thought": "Brief description of changes",
   "files_to_write": [
     {{
-      "path": "app/services/firebase_service.py",
-      "content": "file content here"
+      "path": "app/...",
+      "content": "full content"
     }}
   ],
-  "commit_message": "feat(auth): implement firebase token verification"
+  "commit_message": "git commit message"
 }}
 """
-    headers = {"Content-Type": "application/json"}
+
     payload = {
-        "contents": [{"parts": [{"text": system_prompt}]}],
-        "generationConfig": {"response_mime_type": "application/json"}
+        "contents": [{"parts": [{"text": user_content}]}],
+        "system_instruction": system_instruction,
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.1
+        }
     }
 
-    print("🧠 [Room 1 & 3] Consulting Gemini 2.0 Flash Engine...")
+    headers = {"Content-Type": "application/json"}
+    print("🧠 Querying Gemini 3.6 Flash...")
+
     req = urllib.request.Request(
         GEMINI_URL,
         data=json.dumps(payload).encode("utf-8"),
@@ -84,22 +93,20 @@ JSON SCHEMA:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode("utf-8"))
             raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
             result = json.loads(raw_text)
-    except urllib.error.HTTPError as e:
-        print(f"❌ Gemini API Error ({e.code}): {e.read().decode('utf-8')}")
-        return
     except Exception as e:
-        print(f"❌ Agent Execution Error: {e}")
+        print(f"❌ Error: {e}")
         return
 
-    print(f"\n🏠 Active Room: {result.get('room')}")
-    print(f"🤖 Active Agent: {result.get('agent')}")
-    print(f"💡 Execution Plan: {result.get('thought')}\n")
+    elapsed = round(time.time() - start_time, 2)
+    print(f"\n⚡ Generated in {elapsed}s!")
+    print(f"🏠 Room: {result.get('room')}")
+    print(f"🤖 Agent: {result.get('agent')}")
+    print(f"💡 Plan: {result.get('thought')}\n")
 
-    # 1. Write Files Directly to Termux Disk
     for item in result.get("files_to_write", []):
         path = item["path"]
         content = item["content"]
@@ -107,14 +114,13 @@ JSON SCHEMA:
             os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             f.write(content)
-        print(f"  ✍️ [Written to Disk]: {path}")
+        print(f"  ✍️ [Written]: {path}")
 
-    # 2. Stage & Commit to Git Automatically
-    commit_msg = result.get("commit_message", "update from termux agent")
+    commit_msg = result.get("commit_message", "update from agent")
     subprocess.run(["git", "add", "."], capture_output=True)
     subprocess.run(["git", "commit", "-m", commit_msg], capture_output=True)
     print(f"  🌿 [Git Committed]: {commit_msg}")
-    print("\n🎉 Task completed autonomously inside your Termux terminal!")
+    print(f"\n🎉 Finished autonomously in {elapsed}s!")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

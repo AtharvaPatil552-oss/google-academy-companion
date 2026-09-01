@@ -2,9 +2,9 @@ from fastapi import FastAPI, Request, Depends, HTTPException, Header
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from app.services import gemini_service, firebase_service
-from app.config import PORT, FIREBASE_PROJECT_ID
+from app.config import PORT, FIREBASE_PROJECT_ID, FIREBASE_API_KEY
 
 app = FastAPI(
     title="Google Academy Companion API",
@@ -14,7 +14,7 @@ app = FastAPI(
 
 templates = Jinja2Templates(directory="app/templates")
 
-# --- Authentication Dependency (Agent 3.4 - Authorization Engineer) ---
+# --- Authentication Dependency Guard ---
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     """Extracts and verifies Bearer ID Token from Authorization header."""
     if not authorization or not authorization.startswith("Bearer "):
@@ -43,7 +43,8 @@ async def serve_dashboard(request: Request):
     """Serves the Single Page Application UI."""
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "firebase_project_id": FIREBASE_PROJECT_ID
+        "firebase_project_id": FIREBASE_PROJECT_ID,
+        "firebase_api_key": FIREBASE_API_KEY
     })
 
 @app.get("/api/health")
@@ -51,17 +52,19 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "Google Academy Companion",
-        "auth": "Firebase Auth Enabled"
+        "auth": "Firebase Auth Guard Active",
+        "project_id": FIREBASE_PROJECT_ID
     }
 
-# --- Protected Endpoints (Layer 1 Guarded) ---
+# --- Protected Endpoints (Auth Guarded) ---
 @app.get("/api/auth/me")
 async def get_auth_profile(user: dict = Depends(get_current_user)):
-    """Returns the authenticated user's profile and UID."""
+    """Returns authenticated user identity."""
     return {
         "authenticated": True,
         "uid": user["uid"],
         "email": user["email"],
+        "email_verified": user.get("email_verified", False),
         "message": f"Welcome, {user['email']}!"
     }
 
@@ -80,23 +83,33 @@ async def list_resources(user: dict = Depends(get_current_user)):
         },
         {
             "id": "res-2",
-            "title": "Firebase Authentication Guide",
+            "title": "Firebase Authentication & Security Rules",
             "category": "FIREBASE",
-            "difficulty": "Beginner",
-            "summary": "Step-by-step setup for Email/Password authentication and user token verification.",
+            "difficulty": "Intermediate",
+            "summary": "Step-by-step setup for Email/Password auth and ID token verification on FastAPI backend.",
             "topics": ["Auth SDK", "ID Tokens", "Protected Routes"],
             "status": "In Progress"
+        },
+        {
+            "id": "res-3",
+            "title": "FastAPI Async Architecture",
+            "category": "BACKEND",
+            "difficulty": "Intermediate",
+            "summary": "Building high-performance async REST endpoints with Pydantic validations.",
+            "topics": ["FastAPI", "Async/Await", "Pydantic"],
+            "status": "Recommended"
         }
     ]
 
 @app.post("/api/resources")
 async def add_resource(req: ResourceRequest, user: dict = Depends(get_current_user)):
-    """Analyze and persist user resource."""
+    """Analyze and persist user resource using Gemini AI."""
     analysis = gemini_service.analyze_resource(req.content, req.title)
     return {
         "status": "created",
         "user_id": user["uid"],
         "title": req.title,
+        "category": req.category,
         "analysis": analysis
     }
 

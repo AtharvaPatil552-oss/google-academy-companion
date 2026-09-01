@@ -19,10 +19,10 @@
     } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 
     const firebaseConfig = {
-      apiKey: "{{ firebase_api_key }}",
-      authDomain: "genuine-plate-507315-u9.firebaseapp.com",
-      projectId: "genuine-plate-507315-u9",
-      storageBucket: "genuine-plate-507315-u9.firebasestorage.app",
+      apiKey: "{{ firebase_api_key }}" || "AIzaSyFakeKeyForTestingOnly12345",
+      authDomain: "{{ firebase_project_id }}.firebaseapp.com",
+      projectId: "{{ firebase_project_id }}" || "genuine-plate-507315-u9",
+      storageBucket: "{{ firebase_project_id }}.firebasestorage.app",
       appId: "1:810911166292:web:google-academy-companion"
     };
 
@@ -38,28 +38,31 @@
       const authBtnText = document.getElementById("authBtnText");
       const unauthBanner = document.getElementById("unauthBanner");
       const mainContent = document.getElementById("mainContent");
+      const userEmailDisplay = document.getElementById("userEmailDisplay");
 
       if (user) {
         window.currentUser = user;
         window.currentUserToken = await user.getIdToken();
         userBadge.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 mr-1.5"></i> ${user.email}`;
-        userBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700";
+        userBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm";
         authBtnText.textContent = "Sign Out";
         unauthBanner.classList.add("hidden");
         mainContent.classList.remove("opacity-40", "pointer-events-none");
+        if (userEmailDisplay) userEmailDisplay.textContent = user.email;
         loadResources();
       } else {
         window.currentUser = null;
         window.currentUserToken = null;
         userBadge.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400 mr-1.5"></i> Not Logged In`;
-        userBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800";
+        userBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800 shadow-sm";
         authBtnText.textContent = "Sign In";
         unauthBanner.classList.remove("hidden");
         mainContent.classList.add("opacity-40", "pointer-events-none");
+        if (userEmailDisplay) userEmailDisplay.textContent = "Unauthenticated User";
       }
     });
 
-    // Auth Action (Login / Register)
+    // Auth Actions (Login / Register)
     window.handleAuthAction = async (isRegister) => {
       const email = document.getElementById("authEmail").value.trim();
       const password = document.getElementById("authPassword").value.trim();
@@ -97,23 +100,26 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col">
 
   <!-- Header / Navigation -->
-  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-md">
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
     <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-3">
         <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
-          <i class="fa-solid fa-brain text-lg"></i>
+          <i class="fa-solid fa-graduation-cap text-lg"></i>
         </div>
         <div>
-          <h1 class="font-bold text-base md:text-lg text-white">Google Academy Companion</h1>
+          <h1 class="font-bold text-base md:text-lg text-white flex items-center gap-2">
+            Google Academy Companion
+            <span class="px-2 py-0.5 text-[10px] font-bold bg-blue-900/60 text-blue-300 rounded border border-blue-700/50">v1.0</span>
+          </h1>
           <p class="text-xs text-blue-400 font-medium">Layer 1: Firebase Auth & Isolation</p>
         </div>
       </div>
       
       <div class="flex items-center space-x-3">
-        <span id="userBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800">
+        <span id="userBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800 shadow-sm">
           <i class="fa-solid fa-circle-xmark text-rose-400 mr-1.5"></i> Not Logged In
         </span>
-        <button onclick="handleLogout()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition shadow-sm flex items-center">
+        <button onclick="handleLogout()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition shadow-md flex items-center">
           <i class="fa-solid fa-user-lock mr-1.5"></i> <span id="authBtnText">Sign In</span>
         </button>
       </div>
@@ -121,21 +127,22 @@
 
     <!-- Navigation Tabs -->
     <div class="max-w-7xl mx-auto px-4 flex space-x-2 border-t border-slate-800/80 overflow-x-auto text-sm py-2">
-      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-4 py-1.5 rounded-lg bg-blue-600 text-white font-medium">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-4 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm transition">
         <i class="fa-solid fa-chart-pie mr-1.5"></i> Dashboard
       </button>
-      <button onclick="switchTab('resources')" id="tab-resources" class="tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium">
+      <button onclick="switchTab('resources')" id="tab-resources" class="tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition">
         <i class="fa-solid fa-book-bookmark mr-1.5"></i> Resources
       </button>
-      <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium">
+      <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition">
         <i class="fa-solid fa-robot mr-1.5"></i> Gemini Companion
       </button>
     </div>
   </header>
 
   <!-- Unauthorized Banner -->
-  <div id="unauthBanner" class="bg-gradient-to-r from-blue-900/60 to-indigo-900/60 border-b border-blue-700/50 p-3 text-center text-xs md:text-sm text-blue-200">
-    🔒 <strong>Authentication Required:</strong> Please sign in to securely access your isolated resources and AI companion.
+  <div id="unauthBanner" class="bg-gradient-to-r from-blue-900/60 via-indigo-900/60 to-purple-900/60 border-b border-blue-700/50 p-3 text-center text-xs md:text-sm text-blue-200 flex items-center justify-center gap-2">
+    <i class="fa-solid fa-lock text-amber-400"></i>
+    <span><strong>Authentication Guard Active:</strong> Sign in or register to unlock user-isolated resources and Gemini AI features.</span>
   </div>
 
   <!-- Main Content Area -->
@@ -143,42 +150,85 @@
 
     <!-- DASHBOARD VIEW -->
     <section id="view-dashboard" class="space-y-6">
+      <!-- Welcome Card -->
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 p-6 rounded-2xl border border-slate-800 shadow-lg">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              Welcome, <span id="userEmailDisplay" class="text-blue-400">Student</span>!
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Your learning station is guarded by Firebase ID token verification and powered by Gemini 2.0 Flash intelligence.
+            </p>
+          </div>
+          <button onclick="switchTab('chat')" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md transition flex items-center gap-2">
+            <i class="fa-solid fa-comments"></i> Open AI Tutor
+          </button>
+        </div>
+      </div>
+
+      <!-- Metric Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-semibold text-slate-400">Security & Isolation</h3>
-            <span class="text-xs font-bold text-emerald-400">Layer 1 Active</span>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Security & Isolation</h3>
+            <span class="text-xs font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">Layer 1 Guard Active</span>
           </div>
-          <p class="text-xs text-slate-400 mt-2">All requests verified with Firebase Auth ID Tokens.</p>
+          <p class="text-xl font-bold text-white mt-1">Firebase Auth</p>
+          <p class="text-xs text-slate-400 mt-2">TokenInfo API validation on every API route.</p>
         </div>
         <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow">
-          <h3 class="text-sm font-semibold text-slate-400 mb-1">Backend Runtime</h3>
-          <p class="text-base font-bold text-blue-400">FastAPI (Python 3)</p>
-          <p class="text-xs text-slate-400 mt-2">Termux ARM64 Station</p>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Backend Runtime</h3>
+            <span class="text-xs font-bold text-blue-400 bg-blue-950 px-2 py-0.5 rounded border border-blue-800">ARM64 Fast</span>
+          </div>
+          <p class="text-xl font-bold text-blue-400 mt-1">FastAPI Async</p>
+          <p class="text-xs text-slate-400 mt-2">Termux Android Station & REST services.</p>
         </div>
         <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow">
-          <h3 class="text-sm font-semibold text-slate-400 mb-1">AI Engine</h3>
-          <p class="text-base font-bold text-purple-400">Gemini 2.0 Flash</p>
-          <p class="text-xs text-slate-400 mt-2">REST API Integration</p>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">AI Tutor Engine</h3>
+            <span class="text-xs font-bold text-purple-400 bg-purple-950 px-2 py-0.5 rounded border border-purple-800">Multi-Turn</span>
+          </div>
+          <p class="text-xl font-bold text-purple-400 mt-1">Gemini 2.0 Flash</p>
+          <p class="text-xs text-slate-400 mt-2">Contextual resource summarization & assistant.</p>
         </div>
       </div>
     </section>
 
     <!-- RESOURCES VIEW -->
     <section id="view-resources" class="hidden space-y-6">
-      <div id="resourceGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      <div class="flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-800">
+        <div>
+          <h3 class="font-bold text-white text-base">Your Learning Materials</h3>
+          <p class="text-xs text-slate-400">Scoped to your verified Firebase user account</p>
+        </div>
+        <button onclick="loadResources()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 transition">
+          <i class="fa-solid fa-rotate mr-1"></i> Refresh
+        </button>
+      </div>
+      <div id="resourceGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </section>
 
     <!-- CHAT VIEW -->
-    <section id="view-chat" class="hidden h-[70vh] flex flex-col bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+    <section id="view-chat" class="hidden h-[70vh] flex flex-col bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+      <div class="bg-slate-950 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span class="font-semibold text-xs text-slate-300">Gemini AI Companion</span>
+        </div>
+        <span class="text-[11px] font-mono text-slate-500">Model: gemini-2.0-flash</span>
+      </div>
+      
       <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 text-sm">
-        <div class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-lg max-w-[85%] text-slate-200">
-          👋 Hello! Once authenticated, all our conversations remain strictly private to your account.
+        <div class="bg-slate-800/90 border border-slate-700/60 p-3.5 rounded-2xl max-w-[85%] text-slate-200 shadow-sm">
+          👋 Hello! I am your Google Academy AI Companion. Ask me questions about Google Cloud, AI concepts, Python backend development, or your study materials.
         </div>
       </div>
+      
       <form onsubmit="sendMessage(event)" class="p-3 bg-slate-950 border-t border-slate-800 flex space-x-2">
-        <input type="text" id="chatInput" placeholder="Ask Gemini about your academy materials..." required class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-        <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition">
+        <input type="text" id="chatInput" placeholder="Ask Gemini about cloud concepts, prompts, or code..." required class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+        <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition shadow-md flex items-center justify-center">
           <i class="fa-solid fa-paper-plane"></i>
         </button>
       </form>
@@ -187,28 +237,33 @@
   </main>
 
   <!-- Auth Modal -->
-  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50 transition-opacity">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-5 shadow-2xl relative">
       <div class="flex items-center justify-between">
-        <h3 class="font-bold text-lg text-white">🔐 Firebase Sign In</h3>
-        <button onclick="toggleAuthModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <div class="flex items-center space-x-2">
+          <div class="w-8 h-8 bg-blue-600/20 text-blue-400 rounded-lg flex items-center justify-center font-bold">
+            <i class="fa-solid fa-shield-halved text-sm"></i>
+          </div>
+          <h3 class="font-bold text-base text-white">Firebase Auth</h3>
+        </div>
+        <button onclick="toggleAuthModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
 
-      <div id="authError" class="hidden p-3 rounded-lg bg-rose-950/80 border border-rose-800 text-rose-300 text-xs"></div>
+      <div id="authError" class="hidden p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs"></div>
 
-      <div class="space-y-3">
+      <div class="space-y-3.5">
         <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Email</label>
-          <input type="email" id="authEmail" placeholder="your-email@example.com" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+          <input type="email" id="authEmail" placeholder="student@example.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-400 mb-1">Password</label>
-          <input type="password" id="authPassword" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+          <input type="password" id="authPassword" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
         </div>
         
         <div class="flex space-x-2 pt-2">
-          <button type="button" onclick="handleAuthAction(false)" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg text-xs transition">Sign In</button>
-          <button type="button" onclick="handleAuthAction(true)" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg text-xs transition border border-slate-700">Register</button>
+          <button type="button" onclick="handleAuthAction(false)" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition shadow-md">Sign In</button>
+          <button type="button" onclick="handleAuthAction(true)" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700">Register</button>
         </div>
       </div>
     </div>
@@ -222,10 +277,10 @@
     function switchTab(tabId) {
       ['dashboard', 'resources', 'chat'].forEach(t => {
         document.getElementById(`view-${t}`).classList.add('hidden');
-        document.getElementById(`tab-${t}`).className = 'tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium';
+        document.getElementById(`tab-${t}`).className = 'tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition';
       });
       document.getElementById(`view-${tabId}`).classList.remove('hidden');
-      document.getElementById(`tab-${tabId}`).className = 'tab-btn px-4 py-1.5 rounded-lg bg-blue-600 text-white font-medium';
+      document.getElementById(`tab-${tabId}`).className = 'tab-btn px-4 py-1.5 rounded-lg bg-blue-600 text-white font-medium transition shadow-sm';
     }
 
     async function loadResources() {
@@ -237,10 +292,19 @@
         if (res.ok) {
           const data = await res.json();
           document.getElementById('resourceGrid').innerHTML = data.map(r => `
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span>
-              <h4 class="font-bold text-white text-sm">${r.title}</h4>
-              <p class="text-xs text-slate-300">${r.summary}</p>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-md flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span>
+                  <span class="text-[10px] font-semibold text-slate-400">${r.difficulty}</span>
+                </div>
+                <h4 class="font-bold text-white text-sm">${r.title}</h4>
+                <p class="text-xs text-slate-300 leading-relaxed">${r.summary}</p>
+              </div>
+              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                <span class="text-slate-400 text-[11px]"><i class="fa-solid fa-list-check mr-1"></i>${r.topics.join(', ')}</span>
+                <span class="text-emerald-400 font-semibold text-[11px]">${r.status}</span>
+              </div>
             </div>
           `).join('');
         }
@@ -256,8 +320,12 @@
       if (!query || !window.currentUserToken) return;
 
       const chat = document.getElementById('chatMessages');
-      chat.innerHTML += `<div class="bg-blue-600 text-white p-3 rounded-lg max-w-[85%] ml-auto">${query}</div>`;
+      chat.innerHTML += `<div class="bg-blue-600 text-white p-3.5 rounded-2xl max-w-[85%] ml-auto shadow-sm">${query}</div>`;
       input.value = '';
+      chat.scrollTop = chat.scrollHeight;
+
+      const loadingId = 'loading-' + Date.now();
+      chat.innerHTML += `<div id="${loadingId}" class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-2xl max-w-[85%] text-slate-400 text-xs italic flex items-center space-x-2"><i class="fa-solid fa-spinner animate-spin"></i> <span>Gemini is thinking...</span></div>`;
       chat.scrollTop = chat.scrollHeight;
 
       try {
@@ -269,11 +337,20 @@
           },
           body: JSON.stringify({query})
         });
-        const data = await res.json();
-        chat.innerHTML += `<div class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-lg max-w-[85%] text-slate-200">${data.response}</div>`;
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+
+        if (res.ok) {
+          const data = await res.json();
+          chat.innerHTML += `<div class="bg-slate-800/90 border border-slate-700/60 p-3.5 rounded-2xl max-w-[85%] text-slate-200 whitespace-pre-line shadow-sm">${data.response}</div>`;
+        } else {
+          chat.innerHTML += `<div class="bg-rose-950 border border-rose-800 text-rose-300 p-3 rounded-2xl text-xs max-w-[85%]">Error ${res.status}: Unauthorized or Request failed</div>`;
+        }
         chat.scrollTop = chat.scrollHeight;
       } catch(err) {
-        chat.innerHTML += `<div class="bg-rose-950 text-rose-300 p-3 rounded-lg text-xs">Error communicating with server.</div>`;
+        const loader = document.getElementById(loadingId);
+        if (loader) loader.remove();
+        chat.innerHTML += `<div class="bg-rose-950 border border-rose-800 text-rose-300 p-3 rounded-2xl text-xs max-w-[85%]">Network error communicating with backend server.</div>`;
       }
     }
   </script>

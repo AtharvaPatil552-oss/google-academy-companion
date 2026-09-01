@@ -2,14 +2,13 @@ import requests
 import json
 from app.config import GEMINI_API_KEY
 
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY is not set in .env")
-
-# Using the fast & free Gemini 2.0 Flash endpoint
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
 
 def generate_text(prompt: str) -> str:
     """Core helper function to query Gemini API."""
+    if not GEMINI_API_KEY:
+        return "[Gemini API Key missing] Unable to query Gemini model. Set GEMINI_API_KEY in .env file."
+        
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [
@@ -19,16 +18,15 @@ def generate_text(prompt: str) -> str:
         ]
     }
     
-    response = requests.post(GEMINI_URL, headers=headers, json=payload)
-    
-    if response.status_code != 200:
-        return f"Error from Gemini API ({response.status_code}): {response.text}"
-    
-    data = response.json()
     try:
+        response = requests.post(GEMINI_URL, headers=headers, json=payload, timeout=15)
+        if response.status_code != 200:
+            return f"Error from Gemini API ({response.status_code}): {response.text}"
+        
+        data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        return "No response generated."
+    except Exception as e:
+        return f"Gemini API request failed: {str(e)}"
 
 def analyze_resource(content: str, title: str = "Resource") -> str:
     """Extracts summary, key topics, prerequisites, and relevance for a learning material."""
