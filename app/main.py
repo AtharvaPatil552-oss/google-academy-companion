@@ -1,77 +1,66 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, Header
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
-from typing import Optional, List
+from flask import Flask, render_template, request, jsonify, g
+from functools import wraps
+from typing import Optional, Dict
 from app.services import gemini_service, firebase_service
 from app.config import PORT, FIREBASE_PROJECT_ID, FIREBASE_API_KEY
 
-app = FastAPI(
-    title="Google Academy Companion API",
-    description="Backend API with Firebase Authentication & Gemini Intelligence",
-    version="1.0.0"
-)
+app = Flask(__name__, template_folder="templates")
 
-templates = Jinja2Templates(directory="app/templates")
-
-# --- Authentication Dependency Guard ---
-async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
-    """Extracts and verifies Bearer ID Token from Authorization header."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    
-    token = authorization.split("Bearer ")[1].strip()
-    user = firebase_service.verify_id_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid, expired, or forged Firebase ID token")
-    
-    return user
-
-# --- Schemas ---
-class ChatRequest(BaseModel):
-    query: str
-    resource_context: str = ""
-
-class ResourceRequest(BaseModel):
-    title: str
-    content: str
-    category: str = "General"
+def require_auth(f):
+    """Decorator to protect routes using Firebase ID token verification."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        authorization = request.headers.get("Authorization") or request.headers.get("authorization")
+        if not authorization or not authorization.startswith("Bearer "):
+            return jsonify({"detail": "Missing or invalid Authorization header"}), 401
+        
+        token = authorization.split("Bearer ")[1].strip()
+        user = firebase_service.verify_id_token(token)
+        if not user:
+            return jsonify({"detail": "Invalid, expired, or forged Firebase ID token"}), 401
+        
+        g.user = user
+        return f(*args, **kwargs)
+    return decorated
 
 # --- Public Endpoints ---
-@app.get("/", response_class=HTMLResponse)
-async def serve_dashboard(request: Request):
+@app.route("/", methods=["GET"])
+def serve_dashboard():
     """Serves the Single Page Application UI."""
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "firebase_project_id": FIREBASE_PROJECT_ID,
-        "firebase_api_key": FIREBASE_API_KEY
-    })
+    return render_template(
+        "index.html",
+        firebase_project_id=FIREBASE_PROJECT_ID,
+        firebase_api_key=FIREBASE_API_KEY
+    )
 
-@app.get("/api/health")
-async def health_check():
-    return {
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    return jsonify({
         "status": "healthy",
         "service": "Google Academy Companion",
         "auth": "Firebase Auth Guard Active",
         "project_id": FIREBASE_PROJECT_ID
-    }
+    })
 
 # --- Protected Endpoints (Auth Guarded) ---
-@app.get("/api/auth/me")
-async def get_auth_profile(user: dict = Depends(get_current_user)):
+@app.route("/api/auth/me", methods=["GET"])
+@require_auth
+def get_auth_profile():
     """Returns authenticated user identity."""
-    return {
+    user = g.user
+    return jsonify({
         "authenticated": True,
         "uid": user["uid"],
         "email": user["email"],
         "email_verified": user.get("email_verified", False),
         "message": f"Welcome, {user['email']}!"
-    }
+    })
 
-@app.get("/api/resources")
-async def list_resources(user: dict = Depends(get_current_user)):
+@app.route("/api/resources", methods=["GET"])
+@require_auth
+def list_resources():
     """User-isolated resource listing."""
-    return [
+    return jsonify([
         {
             "id": "res-1",
             "title": "Gemini API Quickstart & Prompts",
@@ -99,29 +88,41 @@ async def list_resources(user: dict = Depends(get_current_user)):
             "topics": ["FastAPI", "Async/Await", "Pydantic"],
             "status": "Recommended"
         }
-    ]
+    ])
 
-@app.post("/api/resources")
-async def add_resource(req: ResourceRequest, user: dict = Depends(get_current_user)):
+@app.route("/api/resources", methods=["POST"])
+@require_auth
+def add_resource():
     """Analyze and persist user resource using Gemini AI."""
-    analysis = gemini_service.analyze_resource(req.content, req.title)
-    return {
+    user = g.user
+    data = request.get_json(silent=True) or {}
+    title = data.get("title", "")
+    content = data.get("content", "")
+    category = data.get("category", "General")
+    
+    analysis = gemini_service.analyze_resource(content, title)
+    return jsonify({
         "status": "created",
         "user_id": user["uid"],
-        "title": req.title,
-        "category": req.category,
+        "title": title,
+        "category": category,
         "analysis": analysis
-    }
+    })
 
-@app.post("/api/chat")
-async def chat_with_gemini(req: ChatRequest, user: dict = Depends(get_current_user)):
+@app.route("/api/chat", methods=["POST"])
+@require_auth
+def chat_with_gemini():
     """Contextual multi-turn companion chat for authenticated users."""
-    response = gemini_service.ask_companion(req.query, req.resource_context)
-    return {
+    user = g.user
+    data = request.get_json(silent=True) or {}
+    query = data.get("query", "")
+    resource_context = data.get("resource_context", "")
+    
+    response = gemini_service.ask_companion(query, resource_context)
+    return jsonify({
         "user_id": user["uid"],
         "response": response
-    }
+    })
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=PORT, reload=True)
+    app.run(host="0.0.0.0", port=PORT, debug=True)
