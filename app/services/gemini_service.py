@@ -6,7 +6,7 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY is not set in .env")
 
 # Using the fast & free Gemini 2.0 Flash endpoint
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
 
 def generate_text(prompt: str) -> str:
     """Core helper function to query Gemini API."""
