@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify, render_template
 from functools import wraps
 from app.config import PORT, FIREBASE_PROJECT_ID, FIREBASE_API_KEY
-from app.services import gemini_service, firebase_service
+from app.services import gemini_service, firebase_service, resource_service
+from app.services.resource_validator import validate_resource_input
 
 app = Flask(__name__)
 
@@ -25,7 +26,7 @@ def serve_dashboard():
 
 @app.route("/api/health")
 def health_check():
-    return jsonify({"status": "healthy", "service": "Google Academy Companion", "auth": "Firebase Auth Enabled"})
+    return jsonify({"status": "healthy", "service": "Google Academy Companion", "auth": "Firebase Auth Enabled", "layer": "Layer 2 - Input System Active"})
 
 @app.route("/api/auth/me")
 @require_auth
@@ -40,24 +41,40 @@ def get_auth_profile():
 @app.route("/api/resources", methods=["GET"])
 @require_auth
 def list_resources():
-    return jsonify([
-        {"id": "res-1", "title": "Gemini API Quickstart", "category": "AI / GEMINI", "difficulty": "Beginner", "summary": "Foundational concepts for calling Gemini models.", "topics": ["Gemini 3.6 Flash", "API Keys", "Multi-turn Chat"], "status": "Completed"},
-        {"id": "res-2", "title": "Firebase Auth Guide", "category": "FIREBASE", "difficulty": "Beginner", "summary": "Email/Password authentication setup.", "topics": ["Auth SDK", "ID Tokens", "Protected Routes"], "status": "In Progress"}
-    ])
+    user_uid = request.user["uid"]
+    resources = resource_service.get_user_resources(user_uid)
+    return jsonify(resources), 200
 
 @app.route("/api/resources", methods=["POST"])
 @require_auth
 def add_resource():
-    data = request.get_json()
-    analysis = gemini_service.analyze_resource(data.get("content", ""), data.get("title", ""))
-    return jsonify({"status": "created", "user_id": request.user["uid"], "title": data.get("title"), "analysis": analysis})
+    data = request.get_json() or {}
+    is_valid, errors, sanitized = validate_resource_input(data)
+    
+    if not is_valid:
+        return jsonify({
+            "error": "Validation failed",
+            "details": errors
+        }), 400
+    
+    user_uid = request.user["uid"]
+    created_resource = resource_service.create_user_resource(user_uid, sanitized)
+    
+    return jsonify({
+        "status": "created",
+        "resource": created_resource
+    }), 201
 
 @app.route("/api/chat", methods=["POST"])
 @require_auth
 def chat_with_gemini():
-    data = request.get_json()
-    response = gemini_service.ask_companion(data.get("query", ""), data.get("resource_context", ""))
-    return jsonify({"user_id": request.user["uid"], "response": response})
+    data = request.get_json() or {}
+    query = data.get("query", "").strip()
+    if not query:
+        return jsonify({"error": "Query cannot be empty"}), 400
+        
+    response = gemini_service.ask_companion(query, data.get("resource_context", ""))
+    return jsonify({"user_id": request.user["uid"], "response": response}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT, debug=True)
