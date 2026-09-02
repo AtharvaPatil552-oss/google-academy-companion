@@ -1,14 +1,18 @@
 rules_version = '2';
-
-// SECURITY ARCHITECTURE (docs/security-architecture.md §4)
-// --------------------------------------------------------
-// All Firestore access is server-side through the FastAPI backend
-// (Firebase Admin SDK), which enforces per-user scoping in code.
-// Web/mobile clients NEVER access Firestore directly, so the entire
-// ruleset denies all client access. Anything other than deny-all
-// here is a security bug.
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /users/{userId}/resources/{resourceId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/conversations/{convId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/learningPath/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/progress/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

@@ -1,80 +1,44 @@
+"""
+Layer 2 — Resource Ingestion Validator
+Agent 3.14 (Validation Engineer)
+"""
 import re
-from typing import Tuple, List, Dict, Any
+from urllib.parse import urlparse
+from app.config import Config
 
-ALLOWED_CATEGORIES = [
-    "AI / GEMINI",
-    "FIREBASE",
-    "GOOGLE CLOUD",
-    "PROJECT / IDEATHON",
-    "GENERAL"
-]
+ALLOWED_CATEGORIES = {"AI", "Firebase", "Cloud", "Project", "General", "Other"}
 
-ALLOWED_TYPES = ["TEXT", "URL", "DOCUMENT", "NOTE"]
-
-URL_REGEX = re.compile(
-    r'^(https?://)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?(/.*)?$',
-    re.IGNORECASE
-)
-
-MAX_TITLE_LENGTH = 120
-MIN_TITLE_LENGTH = 3
-MAX_CONTENT_LENGTH = 50000
-MIN_CONTENT_LENGTH = 5
-
-def sanitize_string(val: str) -> str:
-    if not val:
-        return ""
-    return str(val).strip()
-
-def validate_resource_input(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str, Any]]:
+def validate_resource(data: dict):
     errors = []
     if not isinstance(data, dict):
-        return False, ["Payload must be a JSON object"], {}
+        return False, ["Payload must be a JSON object"]
 
-    title = sanitize_string(data.get("title", ""))
-    content = sanitize_string(data.get("content", ""))
-    category = sanitize_string(data.get("category", "GENERAL")).upper()
-    resource_type = sanitize_string(data.get("resource_type", "TEXT")).upper()
-    url = sanitize_string(data.get("url", ""))
-
-    # 1. Title Validation
+    title = data.get("title", "").strip()
     if not title:
-        errors.append("Title is required.")
-    elif len(title) < MIN_TITLE_LENGTH:
-        errors.append(f"Title must be at least {MIN_TITLE_LENGTH} characters.")
-    elif len(title) > MAX_TITLE_LENGTH:
-        errors.append(f"Title cannot exceed {MAX_TITLE_LENGTH} characters.")
+        errors.append("Title is required")
+    elif len(title) < 3:
+        errors.append("Title must be at least 3 characters")
+    elif len(title) > 200:
+        errors.append("Title cannot exceed 200 characters")
 
-    # 2. Content / URL Validation
+    content = data.get("content", "").strip()
+    url = data.get("url", "").strip()
+
     if not content and not url:
-        errors.append("Either content body or a valid URL must be provided.")
-    if content:
-        if len(content) < MIN_CONTENT_LENGTH and not url:
-            errors.append(f"Content must be at least {MIN_CONTENT_LENGTH} characters.")
-        elif len(content) > MAX_CONTENT_LENGTH:
-            errors.append(f"Content exceeds maximum size of {MAX_CONTENT_LENGTH} characters.")
+        errors.append("Either 'content' or 'url' must be provided")
 
-    # 3. Categorization & Type
-    if category not in ALLOWED_CATEGORIES:
-        category = "GENERAL"
+    if content and len(content.encode("utf-8")) > Config.MAX_RESOURCE_SIZE:
+        errors.append(f"Content exceeds maximum size of {Config.MAX_RESOURCE_SIZE // 1024} KB")
 
-    if resource_type not in ALLOWED_TYPES:
-        resource_type = "TEXT"
-
-    # 4. URL Validation
     if url:
-        if not (url.startswith("http://") or url.startswith("https://")):
-            url = "https://" + url
-        if not URL_REGEX.match(url):
-            errors.append("Invalid URL format. Must be a valid web address.")
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            errors.append("Invalid URL format (must begin with http:// or https://)")
 
-    sanitized = {
-        "title": title,
-        "content": content,
-        "category": category,
-        "resource_type": resource_type,
-        "url": url,
-        "tags": [t.strip().lower() for t in data.get("tags", []) if isinstance(t, str) and t.strip()][:10]
-    }
+    category = data.get("category", "General")
+    if category not in ALLOWED_CATEGORIES:
+        data["category"] = "General"
 
-    return len(errors) == 0, errors, sanitized
+    if errors:
+        return False, errors
+    return True, []

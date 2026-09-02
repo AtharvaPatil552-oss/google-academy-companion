@@ -1,357 +1,375 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Google Academy Companion</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  
-  <!-- Firebase App & Auth SDKs (v10 Modular via CDN) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-    import { 
-      getAuth, 
-      createUserWithEmailAndPassword, 
-      signInWithEmailAndPassword, 
-      signOut, 
-      onAuthStateChanged 
-    } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "{{ firebase_api_key }}" || "AIzaSyFakeKeyForTestingOnly12345",
-      authDomain: "{{ firebase_project_id }}.firebaseapp.com",
-      projectId: "{{ firebase_project_id }}" || "genuine-plate-507315-u9",
-      storageBucket: "{{ firebase_project_id }}.firebasestorage.app",
-      appId: "1:810911166292:web:google-academy-companion"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    window.currentUserToken = null;
-    window.currentUser = null;
-
-    // Listen to Auth State Changes
-    onAuthStateChanged(auth, async (user) => {
-      const userBadge = document.getElementById("userBadge");
-      const authBtnText = document.getElementById("authBtnText");
-      const unauthBanner = document.getElementById("unauthBanner");
-      const mainContent = document.getElementById("mainContent");
-      const userEmailDisplay = document.getElementById("userEmailDisplay");
-
-      if (user) {
-        window.currentUser = user;
-        window.currentUserToken = await user.getIdToken();
-        userBadge.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 mr-1.5"></i> ${user.email}`;
-        userBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm";
-        authBtnText.textContent = "Sign Out";
-        unauthBanner.classList.add("hidden");
-        mainContent.classList.remove("opacity-40", "pointer-events-none");
-        if (userEmailDisplay) userEmailDisplay.textContent = user.email;
-        loadResources();
-      } else {
-        window.currentUser = null;
-        window.currentUserToken = null;
-        userBadge.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400 mr-1.5"></i> Not Logged In`;
-        userBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800 shadow-sm";
-        authBtnText.textContent = "Sign In";
-        unauthBanner.classList.remove("hidden");
-        mainContent.classList.add("opacity-40", "pointer-events-none");
-        if (userEmailDisplay) userEmailDisplay.textContent = "Unauthenticated User";
-      }
-    });
-
-    // Auth Actions (Login / Register)
-    window.handleAuthAction = async (isRegister) => {
-      const email = document.getElementById("authEmail").value.trim();
-      const password = document.getElementById("authPassword").value.trim();
-      const errorMsg = document.getElementById("authError");
-      errorMsg.classList.add("hidden");
-
-      if (!email || !password) {
-        errorMsg.textContent = "Please enter both email and password.";
-        errorMsg.classList.remove("hidden");
-        return;
-      }
-
-      try {
-        if (isRegister) {
-          await createUserWithEmailAndPassword(auth, email, password);
-        } else {
-          await signInWithEmailAndPassword(auth, email, password);
-        }
-        toggleAuthModal();
-      } catch (err) {
-        errorMsg.textContent = err.message.replace("Firebase: ", "");
-        errorMsg.classList.remove("hidden");
-      }
-    };
-
-    window.handleLogout = async () => {
-      if (window.currentUser) {
-        await signOut(auth);
-      } else {
-        toggleAuthModal();
-      }
-    };
-  </script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <style>
+    .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col">
+<body class="bg-slate-50 text-slate-900 min-h-screen">
 
-  <!-- Header / Navigation -->
-  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 shadow-lg">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
-          <i class="fa-solid fa-graduation-cap text-lg"></i>
+  <!-- AUTH MODAL -->
+  <div id="authModal" class="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-xl">
+      <div class="flex items-center space-x-2 mb-6">
+        <span class="text-2xl">🎓</span>
+        <h2 class="text-xl font-bold">Google Academy Companion</h2>
+      </div>
+      <div id="authAlert" class="hidden mb-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200"></div>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-600 block mb-1">Email</label>
+          <input id="emailInput" type="email" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="learner@example.com">
         </div>
         <div>
-          <h1 class="font-bold text-base md:text-lg text-white flex items-center gap-2">
-            Google Academy Companion
-            <span class="px-2 py-0.5 text-[10px] font-bold bg-blue-900/60 text-blue-300 rounded border border-blue-700/50">v1.0</span>
-          </h1>
-          <p class="text-xs text-blue-400 font-medium">Layer 1: Firebase Auth & Isolation</p>
+          <label class="text-xs font-semibold text-slate-600 block mb-1">Password</label>
+          <input id="passInput" type="password" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="••••••••">
         </div>
-      </div>
-      
-      <div class="flex items-center space-x-3">
-        <span id="userBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800 shadow-sm">
-          <i class="fa-solid fa-circle-xmark text-rose-400 mr-1.5"></i> Not Logged In
-        </span>
-        <button onclick="handleLogout()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition shadow-md flex items-center">
-          <i class="fa-solid fa-user-lock mr-1.5"></i> <span id="authBtnText">Sign In</span>
-        </button>
+        <button onclick="handleAuth('login')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition">Sign In</button>
+        <button onclick="handleAuth('signup')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg text-sm transition">Create Account</button>
       </div>
     </div>
-
-    <!-- Navigation Tabs -->
-    <div class="max-w-7xl mx-auto px-4 flex space-x-2 border-t border-slate-800/80 overflow-x-auto text-sm py-2">
-      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-4 py-1.5 rounded-lg bg-blue-600 text-white font-medium shadow-sm transition">
-        <i class="fa-solid fa-chart-pie mr-1.5"></i> Dashboard
-      </button>
-      <button onclick="switchTab('resources')" id="tab-resources" class="tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition">
-        <i class="fa-solid fa-book-bookmark mr-1.5"></i> Resources
-      </button>
-      <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition">
-        <i class="fa-solid fa-robot mr-1.5"></i> Gemini Companion
-      </button>
-    </div>
-  </header>
-
-  <!-- Unauthorized Banner -->
-  <div id="unauthBanner" class="bg-gradient-to-r from-blue-900/60 via-indigo-900/60 to-purple-900/60 border-b border-blue-700/50 p-3 text-center text-xs md:text-sm text-blue-200 flex items-center justify-center gap-2">
-    <i class="fa-solid fa-lock text-amber-400"></i>
-    <span><strong>Authentication Guard Active:</strong> Sign in or register to unlock user-isolated resources and Gemini AI features.</span>
   </div>
 
-  <!-- Main Content Area -->
-  <main id="mainContent" class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6 opacity-40 pointer-events-none transition-all duration-300">
-
-    <!-- DASHBOARD VIEW -->
-    <section id="view-dashboard" class="space-y-6">
-      <!-- Welcome Card -->
-      <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 p-6 rounded-2xl border border-slate-800 shadow-lg">
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-              Welcome, <span id="userEmailDisplay" class="text-blue-400">Student</span>!
-            </h2>
-            <p class="text-xs text-slate-400 mt-1">
-              Your learning station is guarded by Firebase ID token verification and powered by Gemini 2.0 Flash intelligence.
-            </p>
-          </div>
-          <button onclick="switchTab('chat')" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md transition flex items-center gap-2">
-            <i class="fa-solid fa-comments"></i> Open AI Tutor
-          </button>
-        </div>
-      </div>
-
-      <!-- Metric Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Security & Isolation</h3>
-            <span class="text-xs font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">Layer 1 Guard Active</span>
-          </div>
-          <p class="text-xl font-bold text-white mt-1">Firebase Auth</p>
-          <p class="text-xs text-slate-400 mt-2">TokenInfo API validation on every API route.</p>
-        </div>
-        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Backend Runtime</h3>
-            <span class="text-xs font-bold text-blue-400 bg-blue-950 px-2 py-0.5 rounded border border-blue-800">ARM64 Fast</span>
-          </div>
-          <p class="text-xl font-bold text-blue-400 mt-1">FastAPI Async</p>
-          <p class="text-xs text-slate-400 mt-2">Termux Android Station & REST services.</p>
-        </div>
-        <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 shadow">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">AI Tutor Engine</h3>
-            <span class="text-xs font-bold text-purple-400 bg-purple-950 px-2 py-0.5 rounded border border-purple-800">Multi-Turn</span>
-          </div>
-          <p class="text-xl font-bold text-purple-400 mt-1">Gemini 2.0 Flash</p>
-          <p class="text-xs text-slate-400 mt-2">Contextual resource summarization & assistant.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- RESOURCES VIEW -->
-    <section id="view-resources" class="hidden space-y-6">
-      <div class="flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-800">
-        <div>
-          <h3 class="font-bold text-white text-base">Your Learning Materials</h3>
-          <p class="text-xs text-slate-400">Scoped to your verified Firebase user account</p>
-        </div>
-        <button onclick="loadResources()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 transition">
-          <i class="fa-solid fa-rotate mr-1"></i> Refresh
-        </button>
-      </div>
-      <div id="resourceGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-    </section>
-
-    <!-- CHAT VIEW -->
-    <section id="view-chat" class="hidden h-[70vh] flex flex-col bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-      <div class="bg-slate-950 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-        <div class="flex items-center space-x-2.5">
-          <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span class="font-semibold text-xs text-slate-300">Gemini AI Companion</span>
-        </div>
-        <span class="text-[11px] font-mono text-slate-500">Model: gemini-2.0-flash</span>
-      </div>
-      
-      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 text-sm">
-        <div class="bg-slate-800/90 border border-slate-700/60 p-3.5 rounded-2xl max-w-[85%] text-slate-200 shadow-sm">
-          👋 Hello! I am your Google Academy AI Companion. Ask me questions about Google Cloud, AI concepts, Python backend development, or your study materials.
-        </div>
-      </div>
-      
-      <form onsubmit="sendMessage(event)" class="p-3 bg-slate-950 border-t border-slate-800 flex space-x-2">
-        <input type="text" id="chatInput" placeholder="Ask Gemini about cloud concepts, prompts, or code..." required class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
-        <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition shadow-md flex items-center justify-center">
-          <i class="fa-solid fa-paper-plane"></i>
-        </button>
-      </form>
-    </section>
-
-  </main>
-
-  <!-- Auth Modal -->
-  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50 transition-opacity">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-5 shadow-2xl relative">
-      <div class="flex items-center justify-between">
+  <!-- MAIN APP WRAPPER -->
+  <div id="appContainer" class="hidden min-h-screen flex flex-col">
+    <!-- NAVBAR -->
+    <header class="bg-white border-b sticky top-0 z-30">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
         <div class="flex items-center space-x-2">
-          <div class="w-8 h-8 bg-blue-600/20 text-blue-400 rounded-lg flex items-center justify-center font-bold">
-            <i class="fa-solid fa-shield-halved text-sm"></i>
+          <span class="text-xl">🎓</span>
+          <span class="font-bold text-slate-800">Academy Companion</span>
+          <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold">Gemini 3.6</span>
+        </div>
+        <button onclick="handleSignOut()" class="text-xs text-slate-500 hover:text-red-600 font-medium">Sign Out</button>
+      </div>
+      <!-- TABS -->
+      <div class="max-w-6xl mx-auto px-4 flex space-x-6 text-sm overflow-x-auto">
+        <button onclick="switchTab('dashboard')" class="tab-link py-3 tab-active" data-target="dashboard">📊 Dashboard</button>
+        <button onclick="switchTab('resources')" class="tab-link py-3 text-slate-500" data-target="resources">📚 Resource Library</button>
+        <button onclick="switchTab('chat')" class="tab-link py-3 text-slate-500" data-target="chat">💬 AI Companion</button>
+        <button onclick="switchTab('learning')" class="tab-link py-3 text-slate-500" data-target="learning">🗺️ Learning Path</button>
+        <button onclick="switchTab('project')" class="tab-link py-3 text-slate-500" data-target="project">🚀 Project Mode</button>
+      </div>
+    </header>
+
+    <!-- CONTENT SECTIONS -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full">
+
+      <!-- DASHBOARD TAB -->
+      <section id="tab-dashboard" class="tab-pane space-y-6">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="bg-white p-4 rounded-xl border">
+            <span class="text-xs text-slate-500 font-medium">Resources Saved</span>
+            <div id="statResources" class="text-2xl font-bold text-blue-600 mt-1">0</div>
           </div>
-          <h3 class="font-bold text-base text-white">Firebase Auth</h3>
+          <div class="bg-white p-4 rounded-xl border">
+            <span class="text-xs text-slate-500 font-medium">Project Progress</span>
+            <div id="statProgress" class="text-2xl font-bold text-green-600 mt-1">0%</div>
+          </div>
+          <div class="bg-white p-4 rounded-xl border">
+            <span class="text-xs text-slate-500 font-medium">Milestones</span>
+            <div id="statMilestones" class="text-2xl font-bold text-purple-600 mt-1">0/7</div>
+          </div>
+          <div class="bg-white p-4 rounded-xl border">
+            <span class="text-xs text-slate-500 font-medium">Active Focus</span>
+            <div id="statCurrentTask" class="text-xs font-semibold text-slate-700 mt-2 truncate">—</div>
+          </div>
         </div>
-        <button onclick="toggleAuthModal()" class="text-slate-400 hover:text-white transition"><i class="fa-solid fa-xmark text-lg"></i></button>
-      </div>
 
-      <div id="authError" class="hidden p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs"></div>
+        <div class="bg-white p-5 rounded-xl border">
+          <h3 class="font-bold text-slate-800 text-sm mb-3">🎯 Gemini Smart Recommendations</h3>
+          <div id="dashRecommendations" class="text-sm text-slate-600 space-y-2">Loading recommendations...</div>
+        </div>
+      </section>
 
-      <div class="space-y-3.5">
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
-          <input type="email" id="authEmail" placeholder="student@example.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+      <!-- RESOURCE LIBRARY TAB -->
+      <section id="tab-resources" class="tab-pane hidden space-y-6">
+        <div class="bg-white p-5 rounded-xl border">
+          <h3 class="font-bold text-slate-800 text-sm mb-3">➕ Add Google Academy Resource</h3>
+          <div class="space-y-3">
+            <input id="resTitle" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Title (e.g. Gemini 2.5 Flash Function Calling Guide)">
+            <input id="resUrl" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="URL (Optional: https://cloud.google.com/...)">
+            <textarea id="resContent" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Resource notes, summary, or content snippets..."></textarea>
+            <div class="flex justify-between items-center">
+              <select id="resCategory" class="px-3 py-2 border rounded-lg text-sm">
+                <option value="AI">AI & Gemini</option>
+                <option value="Firebase">Firebase</option>
+                <option value="Cloud">Google Cloud / Cloud Run</option>
+                <option value="Project">Project & Ideathon</option>
+                <option value="General">General</option>
+              </select>
+              <button onclick="handleAddResource()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium">Save Resource</button>
+            </div>
+          </div>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 mb-1">Password</label>
-          <input type="password" id="authPassword" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+        <div id="resourceGrid" class="grid sm:grid-cols-2 gap-4"></div>
+      </section>
+
+      <!-- AI COMPANION CHAT TAB -->
+      <section id="tab-chat" class="tab-pane hidden">
+        <div class="bg-white rounded-xl border flex flex-col" style="height: 68vh;">
+          <div class="p-3 border-b bg-slate-50 flex items-center justify-between text-xs">
+            <span class="font-semibold text-slate-700">🤖 Contextual AI Assistant (Gemini 3.6)</span>
+            <span class="text-slate-500">Connected to your resources</span>
+          </div>
+          <div id="chatFeed" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+          <div class="p-3 border-t flex space-x-2">
+            <input id="chatInput" class="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ask questions regarding your saved materials..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+            <button onclick="sendChatMessage()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Send</button>
+          </div>
         </div>
-        
-        <div class="flex space-x-2 pt-2">
-          <button type="button" onclick="handleAuthAction(false)" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs transition shadow-md">Sign In</button>
-          <button type="button" onclick="handleAuthAction(true)" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700">Register</button>
+      </section>
+
+      <!-- LEARNING PATH TAB -->
+      <section id="tab-learning" class="tab-pane hidden space-y-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-slate-800">Your AI-Generated Curriculum</h3>
+            <p class="text-xs text-slate-500">Sequenced automatically based on your resources</p>
+          </div>
+          <button onclick="generateLearningPath()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-2 rounded-lg font-semibold">Regenerate Sequence</button>
         </div>
-      </div>
-    </div>
+        <div id="learningPathSteps" class="space-y-3"></div>
+      </section>
+
+      <!-- PROJECT MODE TAB -->
+      <section id="tab-project" class="tab-pane hidden space-y-6">
+        <div class="bg-white p-5 rounded-xl border">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-slate-800 text-sm">Ideathon Submission Checklist</h3>
+            <span id="projectModePercent" class="text-sm font-bold text-emerald-600">0%</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2 mb-4">
+            <div id="projectProgressBar" class="bg-emerald-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+          </div>
+          <div id="taskList" class="space-y-2"></div>
+        </div>
+      </section>
+
+    </main>
   </div>
 
   <script>
-    function toggleAuthModal() {
-      document.getElementById('authModal').classList.toggle('hidden');
+    const FIREBASE_API_KEY = "{{ firebase_api_key }}";
+    const FIREBASE_PROJECT_ID = "{{ firebase_project_id }}";
+
+    let authInstance = null;
+    let currentUser = null;
+    let currentToken = "";
+
+    try {
+      firebase.initializeApp({
+        apiKey: FIREBASE_API_KEY,
+        projectId: FIREBASE_PROJECT_ID,
+        authDomain: FIREBASE_PROJECT_ID + ".firebaseapp.com"
+      });
+      authInstance = firebase.auth();
+      authInstance.onAuthStateChanged(async (user) => {
+        if (user) {
+          currentUser = user;
+          currentToken = await user.getIdToken();
+          document.getElementById("authModal").classList.add("hidden");
+          document.getElementById("appContainer").classList.remove("hidden");
+          loadDashboardData();
+        } else {
+          currentUser = null;
+          currentToken = "";
+          document.getElementById("appContainer").classList.add("hidden");
+          document.getElementById("authModal").classList.remove("hidden");
+        }
+      });
+    } catch(e) {
+      console.error("Firebase config error:", e);
     }
 
-    function switchTab(tabId) {
-      ['dashboard', 'resources', 'chat'].forEach(t => {
-        document.getElementById(`view-${t}`).classList.add('hidden');
-        document.getElementById(`tab-${t}`).className = 'tab-btn px-4 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition';
+    async function handleAuth(mode) {
+      const email = document.getElementById("emailInput").value.trim();
+      const pass = document.getElementById("passInput").value.trim();
+      const alertBox = document.getElementById("authAlert");
+      alertBox.classList.add("hidden");
+      try {
+        if (mode === "signup") {
+          await authInstance.createUserWithEmailAndPassword(email, pass);
+        } else {
+          await authInstance.signInWithEmailAndPassword(email, pass);
+        }
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.classList.remove("hidden");
+      }
+    }
+
+    async function handleSignOut() {
+      if (authInstance) await authInstance.signOut();
+    }
+
+    async function apiRequest(path, method = "GET", payload = null) {
+      const options = {
+        method: method,
+        headers: {
+          "Authorization": "Bearer " + currentToken,
+          "Content-Type": "application/json"
+        }
+      };
+      if (payload) options.body = JSON.stringify(payload);
+      const res = await fetch(path, options);
+      return res.json();
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll(".tab-pane").forEach(el => el.classList.add("hidden"));
+      document.querySelectorAll(".tab-link").forEach(el => {
+        el.classList.remove("tab-active");
+        el.classList.add("text-slate-500");
       });
-      document.getElementById(`view-${tabId}`).classList.remove('hidden');
-      document.getElementById(`tab-${tabId}`).className = 'tab-btn px-4 py-1.5 rounded-lg bg-blue-600 text-white font-medium transition shadow-sm';
+      const activePane = document.getElementById("tab-" + tabName);
+      if (activePane) activePane.classList.remove("hidden");
+      const activeBtn = document.querySelector(`[data-target="${tabName}"]`);
+      if (activeBtn) {
+        activeBtn.classList.add("tab-active");
+        activeBtn.classList.remove("text-slate-500");
+      }
+      if (tabName === "resources") loadResources();
+      if (tabName === "learning") loadLearningPath();
+      if (tabName === "project") loadProjectTasks();
+    }
+
+    async function loadDashboardData() {
+      const [prog, recs] = await Promise.all([
+        apiRequest("/api/progress"),
+        apiRequest("/api/learning/recommendations")
+      ]);
+      if (prog) {
+        document.getElementById("statResources").textContent = prog.resourcesCount || 0;
+        document.getElementById("statProgress").textContent = (prog.completionPercent || 0) + "%";
+        document.getElementById("statMilestones").textContent = (prog.milestonesCompleted || 0) + "/7";
+        document.getElementById("statCurrentTask").textContent = prog.currentTask || "Ingest resources";
+      }
+      const recContainer = document.getElementById("dashRecommendations");
+      if (recs && recs.recommendations && recs.recommendations.length > 0) {
+        recContainer.innerHTML = recs.recommendations.map(r => `
+          <div class="p-3 bg-slate-50 border rounded-lg flex justify-between items-center">
+            <div>
+              <span class="font-bold text-xs text-blue-600 block">${r.title}</span>
+              <span class="text-xs text-slate-500">${r.reason}</span>
+            </div>
+            <span class="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-bold">${r.priority || 'high'}</span>
+          </div>
+        `).join("");
+      } else {
+        recContainer.textContent = "Add learning materials to trigger AI recommendations.";
+      }
     }
 
     async function loadResources() {
-      if (!window.currentUserToken) return;
-      try {
-        const res = await fetch('/api/resources', {
-          headers: { 'Authorization': `Bearer ${window.currentUserToken}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          document.getElementById('resourceGrid').innerHTML = data.map(r => `
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 shadow-md flex flex-col justify-between">
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span>
-                  <span class="text-[10px] font-semibold text-slate-400">${r.difficulty}</span>
-                </div>
-                <h4 class="font-bold text-white text-sm">${r.title}</h4>
-                <p class="text-xs text-slate-300 leading-relaxed">${r.summary}</p>
-              </div>
-              <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                <span class="text-slate-400 text-[11px]"><i class="fa-solid fa-list-check mr-1"></i>${r.topics.join(', ')}</span>
-                <span class="text-emerald-400 font-semibold text-[11px]">${r.status}</span>
-              </div>
+      const data = await apiRequest("/api/resources");
+      const grid = document.getElementById("resourceGrid");
+      const list = data.resources || [];
+      if (list.length === 0) {
+        grid.innerHTML = `<p class="text-xs text-slate-400 sm:col-span-2">No resources added yet.</p>`;
+        return;
+      }
+      grid.innerHTML = list.map(r => `
+        <div class="bg-white p-4 rounded-xl border flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-semibold">${r.category || 'General'}</span>
+              <button onclick="deleteResourceItem('${r._id}')" class="text-slate-400 hover:text-red-600 text-xs">🗑️</button>
             </div>
-          `).join('');
-        }
-      } catch(e) {
-        console.error("Failed to load resources:", e);
+            <h4 class="font-bold text-sm text-slate-800">${r.title || 'Untitled'}</h4>
+            <p class="text-xs text-slate-500 mt-1 line-clamp-2">${r.content || r.url || 'No preview'}</p>
+          </div>
+          <button onclick="triggerAnalysis('${r._id}')" class="mt-3 text-xs bg-purple-50 text-purple-700 font-semibold py-1.5 rounded-lg border border-purple-200 hover:bg-purple-100">🧠 Analyze with Gemini</button>
+        </div>
+      `).join("");
+    }
+
+    async function handleAddResource() {
+      const title = document.getElementById("resTitle").value.trim();
+      const url = document.getElementById("resUrl").value.trim();
+      const content = document.getElementById("resContent").value.trim();
+      const category = document.getElementById("resCategory").value;
+      if (!title) return alert("Title is required");
+      await apiRequest("/api/resources", "POST", { title, url, content, category });
+      document.getElementById("resTitle").value = "";
+      document.getElementById("resUrl").value = "";
+      document.getElementById("resContent").value = "";
+      loadResources();
+    }
+
+    async function deleteResourceItem(rid) {
+      await apiRequest("/api/resources/" + rid, "DELETE");
+      loadResources();
+    }
+
+    async function triggerAnalysis(rid) {
+      alert("Triggering Gemini Resource Analysis...");
+      const res = await apiRequest(`/api/resources/${rid}/analyze`, "POST");
+      if (res.intelligence) {
+        alert("Summary: " + res.intelligence.summary);
       }
     }
 
-    async function sendMessage(e) {
-      e.preventDefault();
-      const input = document.getElementById('chatInput');
-      const query = input.value.trim();
-      if (!query || !window.currentUserToken) return;
+    async function sendChatMessage() {
+      const input = document.getElementById("chatInput");
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      const feed = document.getElementById("chatFeed");
+      feed.innerHTML += `<div class="flex justify-end"><div class="bg-blue-600 text-white text-xs px-3 py-2 rounded-xl max-w-sm">${text}</div></div>`;
+      feed.scrollTop = feed.scrollHeight;
+      const res = await apiRequest("/api/chat", "POST", { question: text });
+      feed.innerHTML += `<div class="flex justify-start"><div class="bg-slate-100 text-slate-800 text-xs px-3 py-2 rounded-xl max-w-sm">${res.answer || 'Error'}</div></div>`;
+      feed.scrollTop = feed.scrollHeight;
+    }
 
-      const chat = document.getElementById('chatMessages');
-      chat.innerHTML += `<div class="bg-blue-600 text-white p-3.5 rounded-2xl max-w-[85%] ml-auto shadow-sm">${query}</div>`;
-      input.value = '';
-      chat.scrollTop = chat.scrollHeight;
-
-      const loadingId = 'loading-' + Date.now();
-      chat.innerHTML += `<div id="${loadingId}" class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-2xl max-w-[85%] text-slate-400 text-xs italic flex items-center space-x-2"><i class="fa-solid fa-spinner animate-spin"></i> <span>Gemini is thinking...</span></div>`;
-      chat.scrollTop = chat.scrollHeight;
-
-      try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${window.currentUserToken}`
-          },
-          body: JSON.stringify({query})
-        });
-        const loader = document.getElementById(loadingId);
-        if (loader) loader.remove();
-
-        if (res.ok) {
-          const data = await res.json();
-          chat.innerHTML += `<div class="bg-slate-800/90 border border-slate-700/60 p-3.5 rounded-2xl max-w-[85%] text-slate-200 whitespace-pre-line shadow-sm">${data.response}</div>`;
-        } else {
-          chat.innerHTML += `<div class="bg-rose-950 border border-rose-800 text-rose-300 p-3 rounded-2xl text-xs max-w-[85%]">Error ${res.status}: Unauthorized or Request failed</div>`;
-        }
-        chat.scrollTop = chat.scrollHeight;
-      } catch(err) {
-        const loader = document.getElementById(loadingId);
-        if (loader) loader.remove();
-        chat.innerHTML += `<div class="bg-rose-950 border border-rose-800 text-rose-300 p-3 rounded-2xl text-xs max-w-[85%]">Network error communicating with backend server.</div>`;
+    async function loadLearningPath() {
+      const data = await apiRequest("/api/learning/path");
+      const steps = data.steps || [];
+      const cont = document.getElementById("learningPathSteps");
+      if (steps.length === 0) {
+        cont.innerHTML = `<button onclick="generateLearningPath()" class="text-xs text-blue-600 underline">Generate learning path from your resources</button>`;
+        return;
       }
+      cont.innerHTML = steps.map((s, idx) => `
+        <div class="bg-white p-4 rounded-xl border flex items-center space-x-4">
+          <span class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold flex items-center justify-center text-xs">${idx + 1}</span>
+          <div>
+            <h5 class="font-bold text-xs text-slate-800">${s.title}</h5>
+            <p class="text-[11px] text-slate-500">${s.reason}</p>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function generateLearningPath() {
+      await apiRequest("/api/learning/path/generate", "POST", { goal: "Complete Hackathon" });
+      loadLearningPath();
+    }
+
+    async function loadProjectTasks() {
+      const prog = await apiRequest("/api/progress");
+      const tasks = prog.projectTasks || [];
+      document.getElementById("projectModePercent").textContent = (prog.completionPercent || 0) + "%";
+      document.getElementById("projectProgressBar").style.width = (prog.completionPercent || 0) + "%";
+      const list = document.getElementById("taskList");
+      list.innerHTML = tasks.map(t => `
+        <div class="flex items-center space-x-3 p-3 bg-slate-50 border rounded-lg">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="rounded text-blue-600">
+          <span class="text-xs font-medium ${t.done ? 'line-through text-slate-400' : 'text-slate-700'}">${t.title}</span>
+        </div>
+      `).join("");
+    }
+
+    async function toggleTask(tid) {
+      await apiRequest("/api/progress/project/task", "POST", { taskId: tid });
+      loadProjectTasks();
     }
   </script>
 </body>

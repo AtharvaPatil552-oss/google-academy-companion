@@ -1,41 +1,64 @@
-import time
-import uuid
-from typing import Dict, List, Optional
+"""
+Layer 3 — Resource Service with Firestore Persistence
+Agent 3.10 (Resource Engineer)
+"""
+from app.services.firestore_service import (
+    create_document, list_documents, get_document,
+    delete_document, update_document, now_iso
+)
+from app.services.resource_validator import validate_resource
 
-# In-memory user-isolated resource store (prepares for Firestore in Layer 3)
-_USER_RESOURCES_STORE: Dict[str, List[Dict]] = {}
+def _col(uid):
+    return f"users/{uid}/resources"
 
-def get_user_resources(uid: str) -> List[Dict]:
-    """Returns all resources strictly isolated to the authenticated user UID."""
-    return _USER_RESOURCES_STORE.get(uid, [])
+def _doc(uid, rid):
+    return f"users/{uid}/resources/{rid}"
 
-def create_user_resource(uid: str, sanitized_data: Dict) -> Dict:
-    """Creates and stores a validated learning resource for the authenticated user."""
-    resource_id = f"res_{uuid.uuid4().hex[:10]}"
-    timestamp = int(time.time())
+def create_resource(uid, token, data):
+    valid, errors = validate_resource(data)
+    if not valid:
+        return None, {"error": "validation_failed", "details": errors}
     
-    resource_doc = {
-        "id": resource_id,
-        "user_id": uid,
-        "title": sanitized_data["title"],
-        "content": sanitized_data["content"],
-        "category": sanitized_data["category"],
-        "resource_type": sanitized_data["resource_type"],
-        "url": sanitized_data["url"],
-        "tags": sanitized_data["tags"],
-        "difficulty": "Unrated",
-        "status": "Ready",
-        "created_at": timestamp,
-        "summary": sanitized_data["content"][:140] + ("..." if len(sanitized_data["content"]) > 140 else "")
+    resource_payload = {
+        "title": data.get("title", "").strip(),
+        "content": data.get("content", "").strip(),
+        "url": data.get("url", "").strip(),
+        "category": data.get("category", "General"),
+        "userId": uid,
+        "createdAt": now_iso(),
+        "status": "active",
+        "intelligence": {}
     }
+    doc, err = create_document(_col(uid), token, resource_payload)
+    if err:
+        return None, err
+    return doc, None
 
-    if uid not in _USER_RESOURCES_STORE:
-        _USER_RESOURCES_STORE[uid] = []
-    
-    _USER_RESOURCES_STORE[uid].insert(0, resource_doc)
-    return resource_doc
+def get_resources(uid, token):
+    docs, err = list_documents(_col(uid), token)
+    if err:
+        return [], err
+    return docs, None
 
-def reset_store_for_testing():
-    """Helper to clear test state."""
-    global _USER_RESOURCES_STORE
-    _USER_RESOURCES_STORE = {}
+def get_resource(uid, token, resource_id):
+    doc, err = get_document(_doc(uid, resource_id), token)
+    if err:
+        return None, err
+    if doc and doc.get("userId") and doc.get("userId") != uid:
+        return None, {"error": True, "status": 403, "message": "Forbidden"}
+    return doc, None
+
+def delete_resource(uid, token, resource_id):
+    doc, err = get_document(_doc(uid, resource_id), token)
+    if err:
+        return False, err
+    if not doc or (doc.get("userId") and doc.get("userId") != uid):
+        return False, {"error": True, "status": 404, "message": "Not found"}
+    return delete_document(_doc(uid, resource_id), token)
+
+def update_resource(uid, token, resource_id, data):
+    data["updatedAt"] = now_iso()
+    doc, err = update_document(_doc(uid, resource_id), token, data)
+    if err:
+        return None, err
+    return doc, None
