@@ -2972,13 +2972,13 @@
       try {
         const res = await apiRequest(`/api/workspaces/${activeWorkspace.id}/mindmap/compile`, "POST", { moduleId: moduleId || undefined });
         notify("Compiled mind map PDF generated successfully!", "success");
-        if (res.downloadUrl) {
-          const link = document.createElement("a");
-          link.href = res.downloadUrl;
-          link.download = res.file?.fileName || "MindMap_Explored_Pathways.pdf";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+        if (res.file && res.file.file_id) {
+          downloadWorkspaceFile(res.file.file_id, res.file.fileName || "MindMap_Explored_Pathways.pdf");
+        } else if (res.downloadUrl) {
+          const fileId = res.downloadUrl.split("/files/")[1]?.split("/download")[0];
+          if (fileId) {
+            downloadWorkspaceFile(fileId, res.file?.fileName || "MindMap_Explored_Pathways.pdf");
+          }
         }
       } catch (err) {
         notify(err.message || "Failed to compile mind map", "error");
@@ -3089,17 +3089,72 @@
       renderWorkspaceStudy();
     }
 
-    // Direct download helper using server file download endpoint
-    function downloadWorkspaceFile(fileId, fileName) {
-      notify(`Downloading ${fileName || "document"}...`, "info");
+    // Direct download helper using authenticated fetch and blob object URL
+    async function downloadWorkspaceFile(fileId, fileName) {
+      if (!activeWorkspace) {
+        notify("No active course selected", "error");
+        return;
+      }
+      notify(`Preparing ${fileName || "document"}...`, "info");
       const token = currentToken || "valid-test-token";
       const url = `/api/workspaces/${activeWorkspace.id}/files/${fileId}/download?token=${encodeURIComponent(token)}`;
-      const link = document.createElement("a");
-      link.href = url;
-      if (fileName) link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          let errMsg = `Download failed (HTTP ${response.status})`;
+          try {
+            const errData = await response.json();
+            if (errData && errData.error) errMsg = errData.error;
+          } catch (_) {
+            const text = await response.text();
+            if (text) errMsg = text.slice(0, 120);
+          }
+          throw new Error(errMsg);
+        }
+
+        const blob = await response.blob();
+        if (!blob || blob.size === 0) {
+          throw new Error("Received empty file from server");
+        }
+
+        // Derive filename from Content-Disposition if present, or fall back to fileName
+        let finalFileName = fileName || "document";
+        const disposition = response.headers.get("Content-Disposition");
+        if (disposition && disposition.includes("filename=")) {
+          const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+          if (match && match[1]) {
+            try {
+              finalFileName = decodeURIComponent(match[1].trim());
+            } catch (_) {
+              finalFileName = match[1].trim();
+            }
+          }
+        }
+
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = finalFileName;
+        document.body.appendChild(link);
+        link.click();
+
+        setTimeout(() => {
+          if (link.parentNode) link.parentNode.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 1500);
+
+        notify(`Downloaded "${finalFileName}" successfully!`, "success");
+      } catch (err) {
+        console.error("File download error:", err);
+        notify(err.message || "Failed to download file", "error");
+      }
     }
 
     // High-fidelity, real PDF download for Detailed Course Notes
@@ -3186,15 +3241,46 @@
         return;
       }
 
+      const matchFile = (filesList) => {
+        const targetFormat = (format || "").toLowerCase();
+        const normDocType = (docType || "").toLowerCase();
+        
+        return filesList.find((f) => {
+          const isCourseScope = (f.scope === "course") || (!f.moduleId && !f.module_id);
+          if (!isCourseScope) return false;
+
+          const fmt = (f.format || f.file_type || "").toLowerCase();
+          if (fmt !== targetFormat) return false;
+
+          const art = (f.artifact_type || f.type || f.category || "").toLowerCase();
+          const title = (f.title || "").toLowerCase();
+          const fname = (f.fileName || f.file_name || "").toLowerCase();
+
+          if (normDocType === "practice_worksheet" || normDocType === "practice_set") {
+            return art.includes("practice") || title.includes("practice") || fname.includes("practice");
+          }
+          if (normDocType === "detailed_notes") {
+            return art.includes("detailed_notes") || title.includes("detailed notes") || fname.includes("detailed notes");
+          }
+          if (normDocType === "short_notes") {
+            return art.includes("short_notes") || title.includes("short notes") || fname.includes("short notes") || title.includes("revision");
+          }
+          if (normDocType === "slide_deck" || normDocType === "slides") {
+            return art.includes("slide") || title.includes("slide") || fname.includes("slide");
+          }
+          if (normDocType === "flashcards") {
+            return art.includes("flashcard") || title.includes("flashcard") || fname.includes("flashcard");
+          }
+          if (normDocType === "mind_map" || normDocType === "mind_map_export") {
+            return art.includes("mind") || title.includes("mind") || fname.includes("mind");
+          }
+
+          return art.includes(normDocType) || fname.includes(normDocType);
+        });
+      };
+
       const files = activeWorkspace.files || [];
-      const match = files.find((f) => {
-        const type = (f.type || f.category || f.artifact_type || "").toLowerCase();
-        const fmt = (f.format || f.file_type || "").toLowerCase();
-        return type.includes(docType) && fmt === format.toLowerCase();
-      }) || files.find((f) => {
-        const fmt = (f.format || f.file_type || "").toLowerCase();
-        return fmt === format.toLowerCase() && (f.fileName || f.file_name || "").toLowerCase().includes(docType.split("_")[0]);
-      });
+      const match = matchFile(files);
 
       if (match) {
         downloadWorkspaceFile(match.file_id, match.fileName || match.file_name);
@@ -3202,10 +3288,8 @@
         notify("Preparing document file...", "info");
         apiRequest(`/api/workspaces/${activeWorkspace.id}/files`, "GET").then((res) => {
           activeWorkspace.files = res.files || [];
-          const newMatch = (activeWorkspace.files || []).find((f) => {
-            const fmt = (f.format || f.file_type || "").toLowerCase();
-            return fmt === format.toLowerCase();
-          });
+          renderWorkspaceStudy();
+          const newMatch = matchFile(activeWorkspace.files);
           if (newMatch) {
             downloadWorkspaceFile(newMatch.file_id, newMatch.fileName || newMatch.file_name);
           } else {
@@ -3216,28 +3300,42 @@
     }
 
     function downloadModuleDocument(moduleId, docType, format) {
-      const files = activeWorkspace.files || [];
-      // Match by moduleId, artifact_type or title/fileName, and format
-      let match = files.find((f) => {
-        const fModId = f.moduleId || f.module_id;
-        const fmt = (f.format || f.file_type || "").toLowerCase();
-        const art = (f.artifact_type || "").toLowerCase();
-        const matchesType = docType === "notes" ? (art === "detailed_notes" || art === "summary")
-                          : docType === "quiz" ? art === "quiz"
-                          : docType === "flashcards" ? art === "flashcards"
-                          : docType === "mind_map_export" ? (art === "mind_map_export" || art === "mind_map")
-                          : true;
-        return fModId === moduleId && fmt === format.toLowerCase() && matchesType;
-      });
+      const targetFormat = (format || "").toLowerCase();
+      const normDocType = (docType || "").toLowerCase();
 
-      // Fallback match if art type was slightly different
-      if (!match) {
-        match = files.find((f) => {
+      const matchModuleFile = (filesList) => {
+        return filesList.find((f) => {
           const fModId = f.moduleId || f.module_id;
+          if (fModId !== moduleId) return false;
+
           const fmt = (f.format || f.file_type || "").toLowerCase();
-          return fModId === moduleId && fmt === format.toLowerCase();
+          if (fmt !== targetFormat) return false;
+
+          const art = (f.artifact_type || "").toLowerCase();
+          const title = (f.title || "").toLowerCase();
+          const fname = (f.fileName || f.file_name || "").toLowerCase();
+
+          if (normDocType === "notes") {
+            return art === "detailed_notes" || art === "summary" || title.includes("note") || fname.includes("note");
+          }
+          if (normDocType === "short_notes") {
+            return art === "short_notes" || title.includes("short") || fname.includes("short");
+          }
+          if (normDocType === "quiz") {
+            return art === "quiz" || title.includes("quiz") || fname.includes("quiz");
+          }
+          if (normDocType === "flashcards") {
+            return art === "flashcards" || title.includes("flashcard") || fname.includes("flashcard");
+          }
+          if (normDocType === "mind_map_export" || normDocType === "mind_map") {
+            return art === "mind_map_export" || art === "mind_map" || title.includes("mind") || fname.includes("mind");
+          }
+          return art.includes(normDocType) || fname.includes(normDocType);
         });
-      }
+      };
+
+      const files = activeWorkspace.files || [];
+      const match = matchModuleFile(files);
 
       if (match) {
         downloadWorkspaceFile(match.file_id, match.fileName || match.file_name);
@@ -3246,11 +3344,7 @@
         apiRequest(`/api/workspaces/${activeWorkspace.id}/files`, "GET").then((res) => {
           activeWorkspace.files = res.files || [];
           renderWorkspaceStudy();
-          const retryMatch = (res.files || []).find((f) => {
-            const fModId = f.moduleId || f.module_id;
-            const fmt = (f.format || f.file_type || "").toLowerCase();
-            return fModId === moduleId && fmt === format.toLowerCase();
-          });
+          const retryMatch = matchModuleFile(activeWorkspace.files);
           if (retryMatch) {
             downloadWorkspaceFile(retryMatch.file_id, retryMatch.fileName || retryMatch.file_name);
           } else {

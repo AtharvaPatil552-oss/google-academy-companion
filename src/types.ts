@@ -198,7 +198,7 @@ export interface WorkspaceFile {
   workspace_id: string;
   module_id?: string;
   title: string;
-  artifact_type: "detailed_notes" | "short_notes" | "slide_deck" | "practice_set" | "quiz" | "flashcards" | "mind_map" | "summary" | "mind_map_export";
+  artifact_type: "detailed_notes" | "short_notes" | "slide_deck" | "practice_set" | "practice_worksheet" | "quiz" | "flashcards" | "mind_map" | "summary" | "mind_map_export";
   scope: "course" | "module";
   format: "pdf" | "docx" | "pptx";
   fileName: string;

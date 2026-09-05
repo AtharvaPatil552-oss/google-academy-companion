@@ -1650,6 +1650,8 @@ export async function generateAllWorkspaceFiles(
       scope: "course",
       format: "docx",
       fileName: docxName,
+      filePath: docxPath,
+      file_path: docxPath,
       fileSize: detailedDocx.length,
       status: "ready",
       createdAt: now,
@@ -1704,7 +1706,8 @@ export async function generateAllWorkspaceFiles(
       finalTakeaway: courseMaterials.shortNotes.overarchingTakeaway
     });
     const shortPdfName = "Short Notes.pdf";
-    fs.writeFileSync(path.join(dir, shortPdfName), shortPdf);
+    const shortPdfPath = path.join(dir, shortPdfName);
+    fs.writeFileSync(shortPdfPath, shortPdf);
 
     files.push({
       file_id: `f_${workspace.id}_short_notes_pdf`,
@@ -1714,6 +1717,8 @@ export async function generateAllWorkspaceFiles(
       scope: "course",
       format: "pdf",
       fileName: shortPdfName,
+      filePath: shortPdfPath,
+      file_path: shortPdfPath,
       fileSize: shortPdf.length,
       status: "ready",
       createdAt: now,
@@ -1735,7 +1740,8 @@ export async function generateAllWorkspaceFiles(
       finalTakeaway: courseMaterials.shortNotes.overarchingTakeaway
     });
     const shortDocxName = "Short Notes.docx";
-    fs.writeFileSync(path.join(dir, shortDocxName), shortDocx);
+    const shortDocxPath = path.join(dir, shortDocxName);
+    fs.writeFileSync(shortDocxPath, shortDocx);
 
     files.push({
       file_id: `f_${workspace.id}_short_notes_docx`,
@@ -1745,6 +1751,8 @@ export async function generateAllWorkspaceFiles(
       scope: "course",
       format: "docx",
       fileName: shortDocxName,
+      filePath: shortDocxPath,
+      file_path: shortDocxPath,
       fileSize: shortDocx.length,
       status: "ready",
       createdAt: now,
@@ -1765,7 +1773,8 @@ export async function generateAllWorkspaceFiles(
       slides: courseMaterials.slideDeck.slides
     });
     const pptxName = "Complete Slides.pptx";
-    fs.writeFileSync(path.join(dir, pptxName), pptxBuffer);
+    const pptxPath = path.join(dir, pptxName);
+    fs.writeFileSync(pptxPath, pptxBuffer);
 
     files.push({
       file_id: `f_${workspace.id}_slides_pptx`,
@@ -1775,6 +1784,8 @@ export async function generateAllWorkspaceFiles(
       scope: "course",
       format: "pptx",
       fileName: pptxName,
+      filePath: pptxPath,
+      file_path: pptxPath,
       fileSize: pptxBuffer.length,
       status: "ready",
       createdAt: now,
@@ -1799,7 +1810,8 @@ export async function generateAllWorkspaceFiles(
       sections: slideSections
     });
     const slidePdfName = "Complete Slides.pdf";
-    fs.writeFileSync(path.join(dir, slidePdfName), slidePdf);
+    const slidePdfPath = path.join(dir, slidePdfName);
+    fs.writeFileSync(slidePdfPath, slidePdf);
 
     files.push({
       file_id: `f_${workspace.id}_slides_pdf`,
@@ -1809,6 +1821,8 @@ export async function generateAllWorkspaceFiles(
       scope: "course",
       format: "pdf",
       fileName: slidePdfName,
+      filePath: slidePdfPath,
+      file_path: slidePdfPath,
       fileSize: slidePdf.length,
       status: "ready",
       createdAt: now,
@@ -1819,7 +1833,7 @@ export async function generateAllWorkspaceFiles(
     console.error("Error generating slides PPTX/PDF:", err);
   }
 
-  // 4. Practice Set / Worksheets (PDF)
+  // 4. Practice Set / Worksheets (PDF & DOCX)
   try {
     const practiceSections: PdfSection[] = courseMaterials.practiceSet.exercises.map(ex => ({
       heading: `Exercise ${ex.exerciseNumber}: ${ex.title}`,
@@ -1845,24 +1859,57 @@ export async function generateAllWorkspaceFiles(
       sections: practiceSections
     });
     const practicePdfName = "Practice Set.pdf";
-    fs.writeFileSync(path.join(dir, practicePdfName), practicePdf);
+    const practicePdfPath = path.join(dir, practicePdfName);
+    fs.writeFileSync(practicePdfPath, practicePdf);
 
     files.push({
       file_id: `f_${workspace.id}_practice_set_pdf`,
       workspace_id: workspace.id,
       title: "Practice Set & Worksheets",
-      artifact_type: "practice_set",
+      artifact_type: "practice_worksheet",
       scope: "course",
       format: "pdf",
       fileName: practicePdfName,
+      filePath: practicePdfPath,
+      file_path: practicePdfPath,
       fileSize: practicePdf.length,
       status: "ready",
       createdAt: now,
       updatedAt: now,
       description: "Complete course practice problems with step-by-step solutions."
     });
+
+    // Also generate DOCX edition of practice worksheets
+    const practiceDocx = await generateBinaryDocx({
+      title: `${workspace.title}: Comprehensive Practice Worksheets`,
+      subtitle: `Hands-on Exercises, Scenario Analyses, and Model Solutions`,
+      subject: workspace.subject,
+      learningGoal: workspace.learningGoal,
+      documentType: "Practice Worksheets",
+      sections: practiceSections
+    });
+    const practiceDocxName = "Practice Worksheet.docx";
+    const practiceDocxPath = path.join(dir, practiceDocxName);
+    fs.writeFileSync(practiceDocxPath, practiceDocx);
+
+    files.push({
+      file_id: `f_${workspace.id}_practice_set_docx`,
+      workspace_id: workspace.id,
+      title: "Practice Set & Worksheets (Word Document)",
+      artifact_type: "practice_worksheet",
+      scope: "course",
+      format: "docx",
+      fileName: practiceDocxName,
+      filePath: practiceDocxPath,
+      file_path: practiceDocxPath,
+      fileSize: practiceDocx.length,
+      status: "ready",
+      createdAt: now,
+      updatedAt: now,
+      description: "Microsoft Word editable edition of course practice problems and solution walkthroughs."
+    });
   } catch (err) {
-    console.error("Error generating practice set PDF:", err);
+    console.error("Error generating practice set PDF/DOCX:", err);
   }
 
   // 5. Course Flashcards (PDF & DOCX)
@@ -1894,7 +1941,8 @@ export async function generateAllWorkspaceFiles(
         sections: flashcardSections
       });
       const fcPdfName = "Course Flashcards.pdf";
-      fs.writeFileSync(path.join(dir, fcPdfName), fcPdf);
+      const fcPdfPath = path.join(dir, fcPdfName);
+      fs.writeFileSync(fcPdfPath, fcPdf);
 
       files.push({
         file_id: `f_${workspace.id}_course_flashcards_pdf`,
@@ -1904,6 +1952,8 @@ export async function generateAllWorkspaceFiles(
         scope: "course",
         format: "pdf",
         fileName: fcPdfName,
+        filePath: fcPdfPath,
+        file_path: fcPdfPath,
         fileSize: fcPdf.length,
         status: "ready",
         createdAt: now,
@@ -1924,7 +1974,8 @@ export async function generateAllWorkspaceFiles(
         sections: flashcardSections
       });
       const fcDocxName = "Course Flashcards.docx";
-      fs.writeFileSync(path.join(dir, fcDocxName), fcDocx);
+      const fcDocxPath = path.join(dir, fcDocxName);
+      fs.writeFileSync(fcDocxPath, fcDocx);
 
       files.push({
         file_id: `f_${workspace.id}_course_flashcards_docx`,
@@ -1934,6 +1985,8 @@ export async function generateAllWorkspaceFiles(
         scope: "course",
         format: "docx",
         fileName: fcDocxName,
+        filePath: fcDocxPath,
+        file_path: fcDocxPath,
         fileSize: fcDocx.length,
         status: "ready",
         createdAt: now,
@@ -1954,7 +2007,8 @@ export async function generateAllWorkspaceFiles(
         courseMaterials.interactiveMindMap
       );
       const mmPdfName = "Course Knowledge Mind Map.pdf";
-      fs.writeFileSync(path.join(dir, mmPdfName), mmPdf);
+      const mmPdfPath = path.join(dir, mmPdfName);
+      fs.writeFileSync(mmPdfPath, mmPdf);
 
       files.push({
         file_id: `f_${workspace.id}_course_mindmap_pdf`,
@@ -1964,6 +2018,8 @@ export async function generateAllWorkspaceFiles(
         scope: "course",
         format: "pdf",
         fileName: mmPdfName,
+        filePath: mmPdfPath,
+        file_path: mmPdfPath,
         fileSize: mmPdf.length,
         status: "ready",
         createdAt: now,
@@ -2000,7 +2056,8 @@ export async function generateAllWorkspaceFiles(
         sections: modSections
       });
       const modPdfName = `Module ${mod.moduleNumber} - Notes.pdf`;
-      fs.writeFileSync(path.join(dir, modPdfName), modPdf);
+      const modPdfPath = path.join(dir, modPdfName);
+      fs.writeFileSync(modPdfPath, modPdf);
 
       const modFile: WorkspaceFile = {
         file_id: `f_${workspace.id}_mod_${mod.id}_notes_pdf`,
@@ -2011,6 +2068,8 @@ export async function generateAllWorkspaceFiles(
         scope: "module",
         format: "pdf",
         fileName: modPdfName,
+        filePath: modPdfPath,
+        file_path: modPdfPath,
         fileSize: modPdf.length,
         status: "ready",
         createdAt: now,
@@ -2034,7 +2093,8 @@ export async function generateAllWorkspaceFiles(
         sections: modSections
       });
       const modDocxName = `Module ${mod.moduleNumber} - Notes.docx`;
-      fs.writeFileSync(path.join(dir, modDocxName), modDocx);
+      const modDocxPath = path.join(dir, modDocxName);
+      fs.writeFileSync(modDocxPath, modDocx);
 
       const modDocxFile: WorkspaceFile = {
         file_id: `f_${workspace.id}_mod_${mod.id}_notes_docx`,
@@ -2045,6 +2105,8 @@ export async function generateAllWorkspaceFiles(
         scope: "module",
         format: "docx",
         fileName: modDocxName,
+        filePath: modDocxPath,
+        file_path: modDocxPath,
         fileSize: modDocx.length,
         status: "ready",
         createdAt: now,
@@ -2083,7 +2145,8 @@ export async function generateAllWorkspaceFiles(
         finalTakeaway: mod.quickNotes.finalTakeaway
       });
       const modShortPdfName = `Module ${mod.moduleNumber} - Short Notes.pdf`;
-      fs.writeFileSync(path.join(dir, modShortPdfName), modShortPdf);
+      const modShortPdfPath = path.join(dir, modShortPdfName);
+      fs.writeFileSync(modShortPdfPath, modShortPdf);
 
       const modShortFile: WorkspaceFile = {
         file_id: `f_${workspace.id}_mod_${mod.id}_short_pdf`,
@@ -2094,6 +2157,8 @@ export async function generateAllWorkspaceFiles(
         scope: "module",
         format: "pdf",
         fileName: modShortPdfName,
+        filePath: modShortPdfPath,
+        file_path: modShortPdfPath,
         fileSize: modShortPdf.length,
         status: "ready",
         createdAt: now,
@@ -2128,7 +2193,8 @@ export async function generateAllWorkspaceFiles(
           sections: quizSections
         });
         const quizPdfName = `Module ${mod.moduleNumber} - Quiz.pdf`;
-        fs.writeFileSync(path.join(dir, quizPdfName), quizPdf);
+        const quizPdfPath = path.join(dir, quizPdfName);
+        fs.writeFileSync(quizPdfPath, quizPdf);
 
         const quizFile: WorkspaceFile = {
           file_id: `f_${workspace.id}_mod_${mod.id}_quiz_pdf`,
@@ -2139,6 +2205,8 @@ export async function generateAllWorkspaceFiles(
           scope: "module",
           format: "pdf",
           fileName: quizPdfName,
+          filePath: quizPdfPath,
+          file_path: quizPdfPath,
           fileSize: quizPdf.length,
           status: "ready",
           createdAt: now,
@@ -2182,7 +2250,8 @@ export async function generateAllWorkspaceFiles(
           sections: modFcSections
         });
         const modFcPdfName = `Module ${mod.moduleNumber} - Flashcards.pdf`;
-        fs.writeFileSync(path.join(dir, modFcPdfName), modFcPdf);
+        const modFcPdfPath = path.join(dir, modFcPdfName);
+        fs.writeFileSync(modFcPdfPath, modFcPdf);
 
         const modFcFile: WorkspaceFile = {
           file_id: `f_${workspace.id}_mod_${mod.id}_flashcards_pdf`,
@@ -2193,6 +2262,8 @@ export async function generateAllWorkspaceFiles(
           scope: "module",
           format: "pdf",
           fileName: modFcPdfName,
+          filePath: modFcPdfPath,
+          file_path: modFcPdfPath,
           fileSize: modFcPdf.length,
           status: "ready",
           createdAt: now,
@@ -2216,7 +2287,8 @@ export async function generateAllWorkspaceFiles(
           mod.mindMapGraph
         );
         const modMmPdfName = `Module ${mod.moduleNumber} - Mind Map.pdf`;
-        fs.writeFileSync(path.join(dir, modMmPdfName), modMmPdf);
+        const modMmPdfPath = path.join(dir, modMmPdfName);
+        fs.writeFileSync(modMmPdfPath, modMmPdf);
 
         const modMmFile: WorkspaceFile = {
           file_id: `f_${workspace.id}_mod_${mod.id}_mindmap_pdf`,
@@ -2227,6 +2299,8 @@ export async function generateAllWorkspaceFiles(
           scope: "module",
           format: "pdf",
           fileName: modMmPdfName,
+          filePath: modMmPdfPath,
+          file_path: modMmPdfPath,
           fileSize: modMmPdf.length,
           status: "ready",
           createdAt: now,

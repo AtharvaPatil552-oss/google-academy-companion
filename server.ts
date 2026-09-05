@@ -14,7 +14,8 @@ import type {
   LearningStep,
   ConversationMessage,
   LearningModule,
-  ModuleQuizAttempt
+  ModuleQuizAttempt,
+  WorkspaceFile
 } from "./src/types.js";
 import {
   generateWorkspaceFromGoal,
@@ -26,7 +27,7 @@ import {
   generateCourseStudyMaterials,
   extractJsonFromMarkdown
 } from "./src/workspaceEngine.js";
-import { generateAllWorkspaceFiles, generateBinaryPdf, compileMindMapToPdf, generateDetailedNotesPdf } from "./src/documentGenerator.js";
+import { generateAllWorkspaceFiles, generateBinaryPdf, compileMindMapToPdf, generateDetailedNotesPdf, ensureWorkspaceFilesDir } from "./src/documentGenerator.js";
 import multer from "multer";
 
 const app = express();
@@ -1508,21 +1509,54 @@ app.get("/api/workspaces/:id/files/:fileId/download", requireAuth, async (req: A
     }
   }
 
+  const wsDir = path.resolve(ensureWorkspaceFilesDir(ws.id));
   let file = (ws.files || []).find(f => f.file_id === req.params.fileId);
 
-  // If file record not found or path doesn't exist, regenerate all files
-  const existingPath = file ? (file.filePath || file.file_path) : undefined;
-  if (!file || !existingPath || !fs.existsSync(existingPath)) {
+  // Helper to resolve and validate file path in preferred order
+  // 1. file.filePath, 2. file.file_path, 3. workspace dir + file.fileName / file_name
+  const resolveFilePath = (f: WorkspaceFile): string | null => {
+    const candidates: (string | undefined)[] = [
+      f.filePath,
+      f.file_path,
+      f.fileName ? path.join(wsDir, f.fileName) : undefined,
+      f.file_name ? path.join(wsDir, f.file_name) : undefined
+    ];
+
+    for (const cand of candidates) {
+      if (!cand) continue;
+      const absPath = path.resolve(cand);
+      // Security: verify resolved path stays strictly inside the workspace files directory
+      if (absPath.startsWith(wsDir) && fs.existsSync(absPath)) {
+        return absPath;
+      }
+    }
+    return null;
+  };
+
+  let validPath = file ? resolveFilePath(file) : null;
+
+  // 4. If file record not found or path doesn't exist, regenerate all files using the pipeline
+  if (!file || !validPath) {
     try {
       ws.files = await generateAllWorkspaceFiles(ws);
       saveDataStore();
       file = (ws.files || []).find(f => f.file_id === req.params.fileId);
-    } catch (e) {}
+      if (file) {
+        validPath = resolveFilePath(file);
+      }
+    } catch (e) {
+      console.error("Error regenerating workspace files on download:", e);
+    }
   }
 
-  const validPath = file ? (file.filePath || file.file_path) : undefined;
   if (!file || !validPath || !fs.existsSync(validPath)) {
     return res.status(404).json({ error: "File could not be found or generated" });
+  }
+
+  // Double check path safety before sending
+  const finalResolvedPath = path.resolve(validPath);
+  if (!finalResolvedPath.startsWith(wsDir)) {
+    return res.status(403).json({ error: "Access denied to file outside workspace directory" });
   }
 
   const mimeMap: Record<string, string> = {
@@ -1537,7 +1571,7 @@ app.get("/api/workspaces/:id/files/:fileId/download", requireAuth, async (req: A
 
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
-  res.download(validPath, fileName);
+  res.download(finalResolvedPath, fileName);
 });
 
 // Toggle expansion on a Module's Progressive Mind Map
