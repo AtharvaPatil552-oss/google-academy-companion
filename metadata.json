@@ -1,0 +1,8 @@
+{
+  "name": "Google Academy Companion",
+  "description": "General AI Learning Platform: Give the AI anything you want to learn. It understands your goal and resources, organizes the knowledge, and turns learning into actionable progress.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

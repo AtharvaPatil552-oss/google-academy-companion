@@ -162,3 +162,8 @@ htmlcov/
 .env
 .env.*
 !.env.example
+
+# Local storage and persistent database
+storage/
+data_store.json
+

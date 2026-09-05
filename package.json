@@ -1,0 +1,29 @@
+{
+  "name": "google-academy-companion",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
+    "start": "node dist/server.js",
+    "lint": "tsc --noEmit",
+    "test": "tsx test/regression.test.ts"
+  },
+  "dependencies": {
+    "@google/genai": "*",
+    "docx": "^9.7.1",
+    "express": "^4.21.2",
+    "multer": "^2.3.0",
+    "pdf-lib": "^1.17.1",
+    "pptxgenjs": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.10.2",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
